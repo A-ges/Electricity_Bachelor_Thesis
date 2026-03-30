@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 
 #Fixed behavioral parameter configurations per agent type
+
 beta_parameters = {
     "Habit-driven": {
         "habit":  {"mu": 0.85, "K": 10},
@@ -41,8 +42,8 @@ def Param_Init(habit_num, price_num, social_num, random_state=None):
     rng = np.random.default_rng(random_state)
 
     mix = {
-        "Habit-driven":      habit_num,
-        "Price-responsive":  price_num,
+        "Habit-driven": habit_num,
+        "Price-responsive": price_num,
         "Social-influenced": social_num,
     }
 
