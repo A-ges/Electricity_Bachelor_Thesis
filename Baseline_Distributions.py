@@ -2,7 +2,7 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
-#This code functions as the setup for the baseline gaussian probability structure.
+#This code functions as the setup for the baseline proba
 
 
 #Data adopted from Yilmaz et al. (2017): average hourly switch-on events per appliance
@@ -44,7 +44,7 @@ def multi_peak_distribution(hours, peak_list, baseline_probability=0.005):
 
     Each entry in peak_list is a tuple representing a peak: (center_hour, height, width).
       - center_hour: on what hour the peak is located
-      - height: peak magnitude before normalisation
+      - height: peak magnitude before normalization
       - width: standard deviation in hours, if larger = broader bump
 
     A small flat baseline is added so every hour has at least some probability,
@@ -290,7 +290,7 @@ print("Fitting Gaussian peaks to each appliance...\n")
 
 fitted_peaks_per_appliance = {}
 
-for appliance_name, target_probabilities in normalised_probabilities.items():
+for appliance_name, target_probabilities in normalized_data.items():
     peak_list, n_peaks_chosen, bic_score = select_best_npeaks(target_probabilities)
     fitted_peaks_per_appliance[appliance_name] = peak_list
 
@@ -327,3 +327,36 @@ for appliance_name, peak_list in fitted_peaks_per_appliance.items():
     for center_hour, height, width in peak_list:
         print(f"    ({center_hour:.2f}, {height:.4f}, {width:.3f}),")
     print(f"])  # {appliance_name}\n")
+
+
+# =============================================================================
+# PLOT: ORIGINAL DATA vs. FITTED DISTRIBUTION
+# =============================================================================
+
+fig, axes = plt.subplots(3, 3, figsize=(15, 10))
+fig.suptitle("Original probabilities vs. Gaussian fit", fontsize=13)
+
+# Flatten the 3x3 grid of axes into a single list for easy iteration.
+axes_flat = axes.flatten()
+
+for axis, (appliance_name, target_probabilities) in zip(axes_flat, normalized_data.items()):
+    peak_list = fitted_peaks_per_appliance[appliance_name]
+    fitted_dist = multi_peak_distribution(hours, peak_list)
+    residual_ss = np.sum((fitted_dist - target_probabilities)**2)
+    number_of_peaks = len(peak_list)
+
+    axis.bar(hours, target_probabilities, alpha=0.4, color="steelblue", label="Original data")
+    axis.plot(hours, fitted_dist, color="red", linewidth=2,
+              label=f"Fit ({number_of_peaks} peaks)")
+
+    # Mark each peak centre with a vertical dashed line.
+    for centre_hour, height, width in peak_list:
+        axis.axvline(x=centre_hour, color="red", alpha=0.25, linewidth=1, linestyle="--")
+
+    axis.set_title(f"{appliance_name}  (RSS={residual_ss:.5f})", fontsize=10)
+    axis.set_xlabel("Hour of day")
+    axis.set_ylabel("Probability")
+    axis.set_xticks(range(0, 24, 3))
+    axis.legend(fontsize=8)
+
+plt.tight_layout()
