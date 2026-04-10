@@ -7,10 +7,9 @@ It generates a heterogeneous clustered network for using the approach from House
 The Claude LLM has been used to make sense of the paper and lay down this approach through pseudocode
 """
 
-def make_network(agents, link_density=0.08, degree_heterogeneity=1.5, clustering_coef=0.30, random_state=None):
+def make_network(agents, link_density=0.05, degree_heterogeneity=1.5, clustering_coef=0.25, random_state=42):
     """
     Generate a heterogeneous clustered random network for a list of agents, based on the method from House (2014).
-
     The network is created with a Markov Chain Monte Carlo (MCMC) algorithm:
     -> Approach every decision based on current states only
     -> Randomly accept or decline edges (required for feasibility and still provides very good outcomes according to House (2014).
@@ -20,14 +19,17 @@ def make_network(agents, link_density=0.08, degree_heterogeneity=1.5, clustering
     Parameters:
     - agents: List of agent IDs in the simulation
 
-    - link_density: float
+    - link_density: float 
         -> Target fraction of all POSSIBLE connections that actually exist 
             -> With 150 agents and density 0.08 (150 x 0.08) = 12 neigbors per agent on average
+                -> Scales along with the N 
 
     - degree_heterogeneity: float
-        -> Target value of ((k^2) - (k)^2) / (k) 
+        -> degree_heterogeneity = Var(k) / mean(k)
             -> The variance-to-mean ratio of the degree distribution. 
-            -> A value of 0 means every agent has the same number of connections, higher values give a wider spread
+            -> A value of 0 means every agent has the same number of connections
+            -> A value of 1 means mean == variance, no real structure, random
+            -> 1+ = wider spread, gives more real social hubs and some with lower social circles
 
     - clustering_coef: float
         -> Target clustering coefficient 
@@ -38,11 +40,10 @@ def make_network(agents, link_density=0.08, degree_heterogeneity=1.5, clustering
     Returns a dictionary where each key is the agent ID and each value is a list of neighbor IDs. 
     If X appears in Y's list, Y will also appear in X's list
     """
-    
     random.seed(random_state)
     N = len(agents)
-
-
+    
+    
     index_to_agent = {}     
     for index, agent in enumerate(agents):
         index_to_agent[index] = agent
@@ -66,8 +67,6 @@ def make_network(agents, link_density=0.08, degree_heterogeneity=1.5, clustering
     beta_l = (degree_heterogeneity + link_density * (N - 1) - 1) * beta_m
     beta_t = clustering_coef * beta_l
 
-    target_M = link_density * N * (N - 1) #all possible directed edges × density
-
     #--------------------------------------------------------------------
     #Defining the Hamiltonian, refer to equation 11 from House 2014
     #
@@ -87,7 +86,7 @@ def make_network(agents, link_density=0.08, degree_heterogeneity=1.5, clustering
         Returns Hamiltonian value. Lower H = network is closer to parameters.
         """
 
-        term_m = beta_m * (M - (link_density * N * (N - 1)) ** 2)
+        term_m = beta_m * (M - (link_density * N * (N - 1))) ** 2
 
         term_l = beta_l * (L - (M * ((degree_heterogeneity - 1) + M / N))) ** 2
 
@@ -136,7 +135,7 @@ def make_network(agents, link_density=0.08, degree_heterogeneity=1.5, clustering
     steps = max((N**2) * 20, 20000)   #at least 20k steps, 20 is a hyper parameter. Higher values take longer to process and the gain in approaching the target turns out very small
 
 
-    #initial Edge (M), Line (L) Triangle (T) count on the empty adjacency matrix + the hamiltonian
+    #initial Edge (M), Line (L) Triangle (T) count on the empty adjacency matrix + the initial hamiltonian
     current_M = 0   
     current_L = 0    
     current_T = 0    
@@ -159,10 +158,10 @@ def make_network(agents, link_density=0.08, degree_heterogeneity=1.5, clustering
 
     for step in range(steps):
 
-        #Pick a random undirected edge to consider flipping
+        #Pick a random edge to consider flipping
         i, j = random.choice(all_edges)
 
-        #Compute how MLT would change if we flip this edge
+        #Compute how MLT would change if this edge is flipped
         delta_M, delta_L, delta_T = delta_statistics(i, j)
 
         #Compute proposed new statistics
