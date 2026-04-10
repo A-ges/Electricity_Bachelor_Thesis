@@ -2,12 +2,16 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
-#This code functions as the setup for the baseline proba
+"""
+This code functions as the setup for the baseline probability format
+It estimates three parameter gaussians (per peak), being: (time, magnitude/height, width).
+This allows for easy interpretability of peaks during the simulation and a more straightforward shifting process.
 
+Data adopted from Yilmaz et al. (2017): average hourly switch-on events per appliance
+Sourced from: UK Household Electricity Survey 2011 which recorded the electric power demand of 251 UK homes and 5860
+individual electrical appliances within those homes.
 
-#Data adopted from Yilmaz et al. (2017): average hourly switch-on events per appliance
-#Sourced from: UK Household Electricity Survey 2011 which recorded the electric power demand of 251 UK homes and 5860
-#individual electrical appliances within those homes.
+"""
 
 #Each list has 24 values, where index 0 = 00:00-01:00 and 24 = 23:00-00:00
 data = {
@@ -20,7 +24,7 @@ data = {
     "Hob":[0.0025,0.0013,0.0026,0.00389,0.001298,0.00389,0.0155,0.0909,0.112,0.0688,0.061,0.0493,0.0727,0.01,0.03,0.02,0.04,0.08,0.13,0.089,0.0584,0.04025,0.01039,0.00779],
     "TV Total":[0.0497,0.0135,0.01917,0.07123,0.042831,0.07345,0.1345,0.2,0.23,0.2228,0.17986,0.08254,0.12102,0.117024,0.0817,0.11195,0.168505,0.18,0.210705,0.36,0.35,0.31,0.3078,0.0904],
     "Electronics":[0.02485,0.00675,0.009585,0.035615,0.0214155,0.036725,0.06725,0.1,0.115,0.1114,0.08993,0.04127,0.06051,0.058512,0.04085,0.055975,0.0842525,0.09,0.1053525,0.18,0.175,0.155,0.1539,0.0452]
-    #ADD ELECTRIC VEHICLE (BUT MAYBE ALREADY NORMALIZED)
+    #ELECTRONIC VEHICLE EV SEPERATELY ADDED AS FINISHED GAUSSIAN
 }
 
 normalized_data = {} #dictionary that holds probabilities (summing to 1)
@@ -73,7 +77,6 @@ def sum_of_squared_errors(flat_parameters, number_of_peaks, target_probabilities
 
     Flat because scipy's L-BFGS-B optimiser only takes flat arrays
     -> [centre1, height1, width1, centre2, height2, width2, for all peaks]
-    this function will unpack them
     """
     #Unpack the flat array back into a list of (centre, height, width) tuples.
     peak_list = []
@@ -97,8 +100,8 @@ def sum_of_squared_errors(flat_parameters, number_of_peaks, target_probabilities
 #-------------------------------------------------
 def make_initial_guess(target_probabilities, number_of_peaks):
     """
-    Function to make an educated guess on the first estimation (x0 paramerter in L-BFGS-B) 
-    to speed up the computation.
+    Function to make an educated guess on the first estimation (x0 paramerter in L-BFGS-B). First of three attempts
+    at finding a starting point
     Find the hours with the highest probabilities and place one Gaussian
     on each of those hours to start from.
     """
@@ -326,37 +329,16 @@ for appliance_name, peak_list in fitted_peaks_per_appliance.items():
     print(f"{variable_name} = multi_peak_distribution(time, [")
     for center_hour, height, width in peak_list:
         print(f"    ({center_hour:.2f}, {height:.4f}, {width:.3f}),")
-    print(f"])  # {appliance_name}\n")
+    print("]")
 
+ev_peaks = [               #manually added and visually approximated Robinson et al. (2013) figure 6: blue line "Home Private"
+    (0.6, 2.2, 1.8),   
+    (14.0, 0.5, 3),   
+    (19.5, 2.5, 2.3),
+    (24, 1, 2.7),
+]
 
-# =============================================================================
-# PLOT: ORIGINAL DATA vs. FITTED DISTRIBUTION
-# =============================================================================
-
-fig, axes = plt.subplots(3, 3, figsize=(15, 10))
-fig.suptitle("Original probabilities vs. Gaussian fit", fontsize=13)
-
-# Flatten the 3x3 grid of axes into a single list for easy iteration.
-axes_flat = axes.flatten()
-
-for axis, (appliance_name, target_probabilities) in zip(axes_flat, normalized_data.items()):
-    peak_list = fitted_peaks_per_appliance[appliance_name]
-    fitted_dist = multi_peak_distribution(hours, peak_list)
-    residual_ss = np.sum((fitted_dist - target_probabilities)**2)
-    number_of_peaks = len(peak_list)
-
-    axis.bar(hours, target_probabilities, alpha=0.4, color="steelblue", label="Original data")
-    axis.plot(hours, fitted_dist, color="red", linewidth=2,
-              label=f"Fit ({number_of_peaks} peaks)")
-
-    # Mark each peak centre with a vertical dashed line.
-    for centre_hour, height, width in peak_list:
-        axis.axvline(x=centre_hour, color="red", alpha=0.25, linewidth=1, linestyle="--")
-
-    axis.set_title(f"{appliance_name}  (RSS={residual_ss:.5f})", fontsize=10)
-    axis.set_xlabel("Hour of day")
-    axis.set_ylabel("Probability")
-    axis.set_xticks(range(0, 24, 3))
-    axis.legend(fontsize=8)
-
-plt.tight_layout()
+print(f"ev_baseline = multi_peak_distribution(time, [")
+for center_hour, height, width in ev_peaks:
+    print(f"    ({center_hour:.2f}, {height:.4f}, {width:.3f}),")
+print("]")
