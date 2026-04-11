@@ -326,10 +326,7 @@ print("Copy-paste below values into final simulation:\n")
 
 for appliance_name, peak_list in fitted_peaks_per_appliance.items():
     variable_name = variable_names[appliance_name]
-    print(f"{variable_name} = multi_peak_distribution(time, [")
-    for center_hour, height, width in peak_list:
-        print(f"    ({center_hour:.2f}, {height:.4f}, {width:.3f}),")
-    print("]")
+    print(f"{variable_name} = multi_peak_distribution(time, {peak_list})\n")
 
 ev_peaks = [               #manually added and visually approximated Robinson et al. (2013) figure 6: blue line "Home Private"
     (0.6, 2.2, 1.8),   
@@ -338,7 +335,4 @@ ev_peaks = [               #manually added and visually approximated Robinson et
     (24, 1, 2.7),
 ]
 
-print(f"ev_baseline = multi_peak_distribution(time, [")
-for center_hour, height, width in ev_peaks:
-    print(f"    ({center_hour:.2f}, {height:.4f}, {width:.3f}),")
-print("]")
+print(f"ev_baseline = multi_peak_distribution(time, {ev_peaks})")
