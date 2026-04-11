@@ -34,15 +34,11 @@ for appliance, hourly_vals in data.items():
     probs = vals / vals.sum()
     normalized_data[appliance] = probs
 
-#Setup the hours
-hours = np.arange(24, dtype=float) #floats for later operations
-
-
 #---------------------------------------------------------
 # DISTRIBUTION FUNCTION (Creates the final distribution)
 #---------------------------------------------------------
 
-def multi_peak_distribution(hours, peak_list, baseline_probability=0.005):
+def multi_peak_distribution(peak_list, baseline_probability=0.005):
     """
     Builds a final 24-hour probability distribution as a sum of Gaussians.
 
@@ -58,7 +54,7 @@ def multi_peak_distribution(hours, peak_list, baseline_probability=0.005):
     distribution = np.zeros(24) #initialize where the final distribution will be stored
 
     for center_hour, height, width in peak_list:
-        gaussian = height * np.exp(-(hours - center_hour)**2 / (2 * width**2)) #compute gaussians for all peaks
+        gaussian = height * np.exp(-(np.arange(24, dtype=float) - center_hour)**2 / (2 * width**2)) #compute gaussians for all peaks
         distribution = distribution + gaussian #use distribution for cumulative storage of all gaussian data
 
     distribution += baseline_probability
@@ -87,7 +83,7 @@ def sum_of_squared_errors(flat_parameters, number_of_peaks, target_probabilities
         width = flat_parameters[start + 2]
         peak_list.append((center_hour, height, width)) #add the full tuple to the peak list
 
-    fitted_distribution = multi_peak_distribution(hours, peak_list) #fit the list with the mpd function
+    fitted_distribution = multi_peak_distribution(peak_list) #fit the list with the mpd function
 
     #Use sum of squared errors to measure fit of the fitted distributions
     squared_errors = (fitted_distribution - target_probabilities) ** 2
@@ -245,7 +241,6 @@ def fit_n_peaks(target_probabilities, number_of_peaks):
 
     return best_peak_list, best_error_so_far
     
-#Max peaks should be set accordingly!!!!!!!!!!!!!!!!!!
 def select_best_npeaks(target_probabilities, max_peaks=4):
     """
     Tries fitting up to n peaks.
@@ -256,8 +251,8 @@ def select_best_npeaks(target_probabilities, max_peaks=4):
     
     where:
     RSS = sum of squared residuals (lower = better fit)
-    N   = number of data points (24 hours)
-    k   = number of free parameters (3 per peak: centre, height, width)
+    N = number of data points (24 hours)
+    k = number of free parameters (3 per peak: centre, height, width)
  
     The first term rewards a good fit.  
     The second term penalizes complexity: adding one more peak adds 3 parameters, so the BIC goes up by 3*ln(24) = 9.6
@@ -297,7 +292,7 @@ for appliance_name, target_probabilities in normalized_data.items():
     peak_list, n_peaks_chosen, bic_score = select_best_npeaks(target_probabilities)
     fitted_peaks_per_appliance[appliance_name] = peak_list
 
-    fitted_dist = multi_peak_distribution(hours, peak_list) #convert to valid distribution
+    fitted_dist = multi_peak_distribution(peak_list) #convert to valid distribution
     rss = np.sum((fitted_dist - target_probabilities)**2)   #final rss
     print(f"  {appliance_name:<16}  {n_peaks_chosen} peaks   RSS = {rss:.6f}   BIC = {bic_score:.3f}")
 
@@ -326,7 +321,7 @@ print("Copy-paste below values into final simulation:\n")
 
 for appliance_name, peak_list in fitted_peaks_per_appliance.items():
     variable_name = variable_names[appliance_name]
-    print(f"{variable_name} = multi_peak_distribution(time, {peak_list})\n")
+    print(f"{variable_name} = multi_peak_distribution({peak_list})\n")
 
 ev_peaks = [               #manually added and visually approximated Robinson et al. (2013) figure 6: blue line "Home Private"
     (0.6, 2.2, 1.8),   
@@ -335,4 +330,4 @@ ev_peaks = [               #manually added and visually approximated Robinson et
     (24, 1, 2.7),
 ]
 
-print(f"ev_baseline = multi_peak_distribution(time, {ev_peaks})")
+print(f"ev_baseline = multi_peak_distribution({ev_peaks})")
