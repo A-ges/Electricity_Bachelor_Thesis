@@ -1,5 +1,7 @@
-"""
+import numpy as np
+import matplotlib.pyplot as plt
 
+"""
 This code generates a daily electricity load profile for every agent at a 15-minute granularity
 -> It determines, when, how often, how long, how intense (appliance variant power draw) appliances are ran
 
@@ -16,14 +18,7 @@ Methodology:
     - Intensity and length are sampled once per agent at initialisation and stay fixed,
       using the characteristics sourced from the code by Williams et al. (2025)
     - A flat baseline load represents always-on devices (e.g. fridge, router, standby)
-
-EV's are added preliminary in this code, will later be added as a boolean in the final data structure with odds that are representative rather than determining it in here
-
 """
-
-import numpy as np
-import matplotlib.pyplot as plt
-
 
 #Same data as in the baseline_distributions file, sourced from Yilmaz et al. (2017)
 #Each value is a switch on probability
