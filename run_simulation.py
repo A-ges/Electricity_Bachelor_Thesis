@@ -307,9 +307,9 @@ def run_simulation(days=7, random_state=2, agents=150, plots=None, shifting=None
     - random_state: integer seed for the master RNG, change this to get different runs
                     agent seeds are derived from it so the same value always gives identical output
     - agents: number of household agents
-    - plots: list of day indices (0-based) to plot aggregate load for, e.g. [0, 6, 13]
+    - plots: list of day indices (starting from 0 (day one)) to plot aggregate load for, e.g. [0, 6, 13]
              if None, no plots are shown
-    - shifting: placeholder for future behavioral modes (habit, price, social)
+    - shifting: placeholder for future enabling of behavioral modes (habit, price, social)
                 currently unused, pass None to use baseline distributions only
     
     Returns:
@@ -319,7 +319,7 @@ def run_simulation(days=7, random_state=2, agents=150, plots=None, shifting=None
      
     #Changing random_state gives a completely different run, same value always reproduces
     master_rng = np.random.default_rng(seed=random_state)
-    agent_seeds = master_rng.integers(0, 1_000_000, size=agents)
+    agent_seeds = master_rng.integers(0, 1000000, size=agents)
 
     #Create one independent RNG per agent from the derived seeds
     agent_random_states = []
