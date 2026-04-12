@@ -309,11 +309,12 @@ def run_simulation(days=7, random_state=2, agents=150, plots=None, shifting=None
     - agents: number of household agents
     - plots: list of day indices (0-based) to plot aggregate load for, e.g. [0, 6, 13]
              if None, no plots are shown
-    - shifting: placeholder as of now for future behavioral modes, pass None to use baseline distributions all the time
+    - shifting: placeholder for future behavioral modes (habit, price, social)
+                currently unused, pass None to use baseline distributions only
     
     Returns:
-    - all_aggregates: list of length `days`, each entry is a 96-slot aggregate load array
-    - all_daily_profiles: list of length `days`, each entry is a list of per-agent 96-slot arrays
+    - all_aggregates: each entry is a day with a 96-slot aggregate load array
+    - all_daily_profiles: each entry is a day with a list of per-agent 96-slot arrays
     """
      
     #Changing random_state gives a completely different run, same value always reproduces
