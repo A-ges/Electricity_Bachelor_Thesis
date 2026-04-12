@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 """
 This code generates a daily electricity load profile for every agent at a 15-minute granularity
 -> It determines, when, how often, how long, how intense (appliance variant power draw) appliances are ran
@@ -11,7 +12,7 @@ For their implementation, refer to: https://github.com/alikazemian-bot/AMPED-Res
 Methodology:
     - Each appliance has a 24h probability distribution -> determines WHEN it is likely to be switched on
     - The number of daily uses is determined by iterating over the switch-on data sourced from Yilmaz et al. (2017), which draws on the
-      UK HES. On every value, a random float is drawn between 0-1, if this number exceeds the value, the times this appliance will be used on this day will go +1
+      UK Household electricity survey. On every value, a random float is drawn between 0-1, if this number exceeds the value, the times this appliance will be used on this day will go +1
       The outcome is independent of previous trials.
     - Once a start-hour is sampled from the distribution, a random quarter within that hour
       (:00, :15, :30, :45) is added to get a 15-minute resolution start time
@@ -19,6 +20,8 @@ Methodology:
       using the characteristics sourced from the code by Williams et al. (2025)
     - A flat baseline load represents always-on devices (e.g. fridge, router, standby)
 """
+
+
 
 #Same data as in the baseline_distributions file, sourced from Yilmaz et al. (2017)
 #Each value is a switch on probability
@@ -39,17 +42,18 @@ data = {
 #Appliance characteristics from Williams et al. (2025), refer to the Github link at the top of this file for source
 #Power in kW and runtime in minutes are sampled once per agent and remain fixed from normal distributions with these parameters
 #Reflects different households own different appliance models with different efficiencies
+#Max_uses_mu and max_uses_sigma added to cap physically unrealistic daily use counts (occupancy filter)
 
 characteristics = {
-    "Dishwasher": {"power_mu": 0.65, "power_sigma": 0.20, "runtime_mu": 60,  "runtime_sigma": 15},
-    "Washing": {"power_mu": 0.65, "power_sigma": 0.40, "runtime_mu": 45,  "runtime_sigma": 15},
-    "Tumble_Drier": {"power_mu": 1.10, "power_sigma": 0.70, "runtime_mu": 60,  "runtime_sigma": 15},
-    "Cooker": {"power_mu": 1.00, "power_sigma": 0.80, "runtime_mu": 30,  "runtime_sigma": 15},
-    "Oven": {"power_mu": 0.70, "power_sigma": 0.50, "runtime_mu": 30,  "runtime_sigma": 15},
-    "Grill": {"power_mu": 1.50, "power_sigma": 0.50, "runtime_mu": 20,  "runtime_sigma": 10},
-    "Hob": {"power_mu": 1.00, "power_sigma": 0.80, "runtime_mu": 20,  "runtime_sigma": 10},
-    "TV": {"power_mu": 0.10, "power_sigma": 0.10, "runtime_mu": 150, "runtime_sigma": 60},
-    "Electronics": {"power_mu": 0.80, "power_sigma": 0.50, "runtime_mu": 30,  "runtime_sigma": 60},
+    "Dishwasher": {"power_mu": 0.65, "power_sigma": 0.20, "runtime_mu": 60,  "runtime_sigma": 15, "max_uses_mu": 1.0, "max_uses_sigma": 0.5},
+    "Washing": {"power_mu": 0.65, "power_sigma": 0.40, "runtime_mu": 45,  "runtime_sigma": 15, "max_uses_mu": 1.5, "max_uses_sigma": 0.5},
+    "Tumble_Drier": {"power_mu": 1.10, "power_sigma": 0.70, "runtime_mu": 60,  "runtime_sigma": 15, "max_uses_mu": 1.5, "max_uses_sigma": 0.5},
+    "Cooker": {"power_mu": 1.00, "power_sigma": 0.80, "runtime_mu": 30,  "runtime_sigma": 15, "max_uses_mu": 4.0, "max_uses_sigma": 0.5},
+    "Oven": {"power_mu": 0.70, "power_sigma": 0.50, "runtime_mu": 30,  "runtime_sigma": 15, "max_uses_mu": 2.0, "max_uses_sigma": 0.5},
+    "Grill": {"power_mu": 1.50, "power_sigma": 0.50, "runtime_mu": 20,  "runtime_sigma": 10, "max_uses_mu": 3.0, "max_uses_sigma": 1.0},
+    "Hob": {"power_mu": 1.00, "power_sigma": 0.80, "runtime_mu": 20,  "runtime_sigma": 10, "max_uses_mu": 4.0, "max_uses_sigma": 1.0},
+    "TV": {"power_mu": 0.10, "power_sigma": 0.10, "runtime_mu": 150, "runtime_sigma": 60, "max_uses_mu": 6.0, "max_uses_sigma": 3.0},
+    "Electronics": {"power_mu": 0.80, "power_sigma": 0.50, "runtime_mu": 30,  "runtime_sigma": 60, "max_uses_mu": 8.0, "max_uses_sigma": 5.0},
 }
 
 
@@ -127,9 +131,13 @@ def sample_agent_appliances(random_state):
         power = abs(random_state.normal(chara["power_mu"], chara["power_sigma"])) #abs as safety for extreme outliers
         runtime = abs(random_state.normal(chara["runtime_mu"], chara["runtime_sigma"]))
         runtime = max(1, round(runtime)) #again, safety for extreme outliers
+        #Max uses sampled per agent so households differ in how intensively they use each appliance
+        max_uses = abs(random_state.normal(chara["max_uses_mu"], chara["max_uses_sigma"]))
+        max_uses = max(1, round(max_uses)) #at least 1, must be integer
         agent_appliances[name] = {
             "power_kw": power,
-            "runtime_min": runtime,}
+            "runtime_min": runtime,
+            "max_uses": max_uses,}
    
     #For standby, fridge etc:
     baseline_power = abs(random_state.normal(0.4, 0.15)) #sourced from Williams et al. (2025)
@@ -196,6 +204,11 @@ def build_daily_load(agent_appliances, has_ev, random_state, previous_overflow=N
             if draw < p:
                 n_uses = n_uses + 1        #this hour produced a switch-on event
 
+        #Cap n_uses at the agent's sampled max_uses for this appliance
+        #Prevents physically impossible use counts (e.g. TV 8 times in one day)
+        #regardless of how the distribution shifts under price or social influence
+        n_uses = min(n_uses, agent_appliances[name]["max_uses"])
+
         #Skip this appliance if not used today
         if n_uses == 0:
             schedule[name] = []
@@ -210,12 +223,27 @@ def build_daily_load(agent_appliances, has_ev, random_state, previous_overflow=N
         runtime_min = agent_appliances[name]["runtime_min"]
         n_slots = max(1, round(runtime_min / 15))  #runtime in slots
 
+        #Sort start hours so the occupancy filter below walks forward in time
+        start_hours = sorted(start_hours)
+
+        #earliest_next_allowed tracks from which slot this appliance may start again
+        #initialised to 0 so the first use is always accepted
+        earliest_next_allowed = 0
+
         start_slots = []
         for h in start_hours:
             #To determine precise 15-minute start slot
             #pick a random quarter-hour within the sampled hour
             quarter = int(random_state.integers(0, 4))
             start_slot = h * 4 + quarter    #absolute slot index within today (0-95)
+
+            #Occupancy filter: discard this use if the appliance is still running
+            #from the previous accepted start. No rightward pushing, just dropped.
+            if start_slot < earliest_next_allowed:
+                continue
+
+            #Accept this start and advance the earliest allowed next start
+            earliest_next_allowed = start_slot + n_slots
 
             #Spread load over each slot of the runtime.
             #If slot exceeds 95 , place load in the overflow array
@@ -268,44 +296,116 @@ def build_daily_load(agent_appliances, has_ev, random_state, previous_overflow=N
 
 
 #------------------
-#Example run
+#Simulation runner
 #------------------
 
-n_agents = 300
+def run_simulation(days=7, random_state=2, agents=150, plots=None, shifting=None):
+    """
+    Run the full simulation for a given number of days.
+    Parameters:
+    - days: number of days to simulate
+    - random_state: integer seed for the master RNG, change this to get different runs
+                    agent seeds are derived from it so the same value always gives identical output
+    - agents: number of household agents
+    - plots: list of day indices (0-based) to plot aggregate load for, e.g. [0, 6, 13]
+             if None, no plots are shown
+    - shifting: placeholder as of now for future behavioral modes, pass None to use baseline distributions all the time
+    
+    Returns:
+    - all_aggregates: list of length `days`, each entry is a 96-slot aggregate load array
+    - all_daily_profiles: list of length `days`, each entry is a list of per-agent 96-slot arrays
+    """
+     
+    #Changing random_state gives a completely different run, same value always reproduces
+    master_rng = np.random.default_rng(seed=random_state)
+    agent_seeds = master_rng.integers(0, 1_000_000, size=agents)
 
-#Create one independent RNG per agent seeded by agent index
-agent_random_states = []
-for i in range(n_agents):
-    agent_random_states.append(np.random.default_rng(seed=i))
+    #Create one independent RNG per agent from the derived seeds
+    agent_random_states = []
+    for i in range(agents):
+        agent_random_states.append(np.random.default_rng(seed=int(agent_seeds[i])))
 
-#Initialise appliance hardware
-agent_appliance_sets = []
-agent_has_ev = []
-for random_state in agent_random_states:
-    appliances, has_ev = sample_agent_appliances(random_state)
-    agent_appliance_sets.append(appliances)
-    agent_has_ev.append(has_ev)
+    #Initialise appliance hardware once, stays fixed for all days
+    agent_appliance_sets = []
+    agent_has_ev = []
+    for random_state_i in agent_random_states:
+        appliances, has_ev = sample_agent_appliances(random_state_i)
+        agent_appliance_sets.append(appliances)
+        agent_has_ev.append(has_ev)
 
-#Day 1
-all_profiles_day1  = []
-all_overflows_day1 = []
-for i in range(n_agents):
-    load, overflow, sched = build_daily_load(
-        agent_appliances = agent_appliance_sets[i],
-        has_ev = agent_has_ev[i],
-        random_state = agent_random_states[i],
-        previous_overflow = None)  #first day has no carry over
-    all_profiles_day1.append(load)
-    all_overflows_day1.append(overflow)
+    #Storage for results across all days
+    all_aggregates = []
+    all_daily_profiles = []
 
-#Day 2, has carry over
+    #Overflows start empty on day 0
+    current_overflows = []
+    for i in range(agents):
+        current_overflows.append(None)
 
-all_profiles_day2 = []
-for i in range(n_agents):
-    load, overflow, sched = build_daily_load(
-        agent_appliances = agent_appliance_sets[i],
-        has_ev = agent_has_ev[i],
-        random_state = agent_random_states[i],
-        previous_overflow = all_overflows_day1[i], 
-    )
-    all_profiles_day2.append(load)
+    #Main simulation loop
+    for day in range(days):
+        day_profiles = []
+        next_overflows = []
+
+        for i in range(agents):
+            load, overflow, sched = build_daily_load(
+                agent_appliances = agent_appliance_sets[i],
+                has_ev = agent_has_ev[i],
+                random_state = agent_random_states[i],
+                previous_overflow = current_overflows[i])
+            day_profiles.append(load)
+            next_overflows.append(overflow)
+
+        #Carry overflows forward to the next day
+        current_overflows = next_overflows
+
+        #Aggregate across all agents for this day
+        aggregate = np.zeros(96)
+        for profile in day_profiles:
+            aggregate = aggregate + profile
+
+        all_aggregates.append(aggregate)
+        all_daily_profiles.append(day_profiles)
+
+        print(f"Day {day + 1}/{days} done  |  peak load: {aggregate.max():.2f} kW  |  total: {aggregate.sum() * 0.25:.1f} kWh")
+
+    #plotting requested days
+    if plots is not None:
+        time_axis = np.linspace(0, 24, 96, endpoint=False)
+
+        for day_index in plots:
+            if day_index >= days:
+                print(f"Warning: day index {day_index} requested but only {days} days were simulated, skipped")
+                continue
+
+            fig, ax = plt.subplots(figsize=(12, 4))
+            ax.fill_between(time_axis, all_aggregates[day_index], color="salmon", alpha=0.7)
+            ax.set_ylabel("kW")
+            ax.set_xlabel("Hour of day")
+            ax.set_title(f"Aggregate load of Day {day_index + 1} ({agents} agents on random state {random_state})")
+            ax.grid(alpha=0.3)
+            plt.xticks(range(25))
+            plt.tight_layout()
+            plt.show()
+    
+    #Always plot the median profile across all simulated days
+    time_axis = np.linspace(0, 24, 96, endpoint=False)
+    aggregates_array = np.array(all_aggregates)
+    median_profile = np.median(aggregates_array, axis=0)
+    fig, ax = plt.subplots(figsize=(12, 4))
+    ax.fill_between(time_axis, median_profile, color="lightblue", alpha=0.7)
+    ax.set_ylabel("kW")
+    ax.set_xlabel("Hour of day")
+    ax.set_title(f"Median aggregate load profile ({days} days, {agents} agents, seed {random_state})")
+    ax.grid(alpha=0.3)
+    plt.xticks(range(25))
+    plt.tight_layout()
+    plt.show()
+ 
+    return all_aggregates, all_daily_profiles
+
+#------------------
+#Example call
+#------------------
+
+results, profiles = run_simulation(days=10, random_state=100, agents=500, plots=[1, 29], shifting=None)
