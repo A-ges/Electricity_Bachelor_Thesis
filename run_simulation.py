@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 This code generates a daily electricity load profile for every agent at a 15-minute granularity
 -> It determines, when, how often, how long, how intense (appliance variant power draw) appliances are ran
 
+Then, I made the function run_simulation, giving easy access to only baselines for now
+
 The core methodology is adopted from Williams et al. (2025) 
 For their implementation, refer to: https://github.com/alikazemian-bot/AMPED-Residential/blob/main/AMPED-Residential%20Agent-based%20Model%20for%20Predicting%20Electricity%20Demand.ipynb
 
@@ -19,6 +21,7 @@ Methodology:
     - Intensity and length are sampled once per agent at initialisation and stay fixed,
       using the characteristics sourced from the code by Williams et al. (2025)
     - A flat baseline load represents always-on devices (e.g. fridge, router, standby)
+
 """
 
 
@@ -318,8 +321,8 @@ def run_simulation(days=7, random_state=2, agents=150, plots=None, shifting=None
     """
      
     #Changing random_state gives a completely different run, same value always reproduces
-    master_rng = np.random.default_rng(seed=random_state)
-    agent_seeds = master_rng.integers(0, 1000000, size=agents)
+    rng = np.random.default_rng(seed=random_state)
+    agent_seeds = rng.integers(0, 1000000, size=agents)
 
     #Create one independent RNG per agent from the derived seeds
     agent_random_states = []
