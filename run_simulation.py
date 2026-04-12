@@ -27,7 +27,7 @@ Methodology:
 
 
 #Same data as in the baseline_distributions file, sourced from Yilmaz et al. (2017)
-#Each value is a switch on probability
+#Each value is a switch on probability (for each hour, but I will only use them to determine the amount of activations, hours are determined by agents' own distributions
 
 data = {
     "Dishwasher":   [0.016,0.0071,0.0071,0.0044,0.0044,0.0017,0.008,0.0266,0.038,0.032,0.03,0.021,0.024,0.034,0.025,0.025,0.0196,0.027,0.0577,0.06577,0.0524,0.0328,0.0488,0.0355],
