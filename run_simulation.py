@@ -221,32 +221,32 @@ def build_daily_load(agent_appliances, has_ev, random_state, previous_overflow=N
         dist = baselines[name].copy()             
         start_hours = random_state.choice(np.arange(24), size=n_uses, p=dist)
 
+        #Addition, let agent sample 5 times again for new hours, if an hour was already chosen to prevent lot of duplicate use and create more logical, over-the-day behavior
+        used_hours = []
+        for hour in start_hours:
+            for i in range(5):
+                if hour not in used_hours:
+                    used_hours.append(hour)
+                    break
+                hour = random_state.choice(np.arange(24), p=dist)
+            else:
+            #after 5 failed attempts, take the value anyway
+                used_hours.append(hour)
+
+        
         #Get own characteristic values for this appliance
         power_kw = agent_appliances[name]["power_kw"]
         runtime_min = agent_appliances[name]["runtime_min"]
         n_slots = max(1, round(runtime_min / 15))  #runtime in slots
 
-        #Sort start hours so the occupancy filter below walks forward in time
-        start_hours = sorted(start_hours)
-
-        #earliest_next_allowed tracks from which slot this appliance may start again
-        #initialised to 0 so the first use is always accepted
-        earliest_next_allowed = 0
-
         start_slots = []
-        for h in start_hours:
+        for h in used_hours:
             #To determine precise 15-minute start slot
             #pick a random quarter-hour within the sampled hour
             quarter = int(random_state.integers(0, 4))
             start_slot = h * 4 + quarter    #absolute slot index within today (0-95)
 
-            #Occupancy filter: discard this use if the appliance is still running
-            #from the previous accepted start. No rightward pushing, just dropped.
-            if start_slot < earliest_next_allowed:
-                continue
 
-            #Accept this start and advance the earliest allowed next start
-            earliest_next_allowed = start_slot + n_slots
 
             #Spread load over each slot of the runtime.
             #If slot exceeds 95 , place load in the overflow array
