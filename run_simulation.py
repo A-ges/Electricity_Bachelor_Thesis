@@ -322,7 +322,7 @@ def build_daily_load(agent_appliances, has_ev, random_state, previous_overflow=N
 #Simulation runner
 #------------------
 
-def run_simulation(days=7, random_state=2, agents=150, plots=None, shifting=None):
+def run_simulation(days=7, random_state=2, agents=150, plots=None, shifting=None, median_plot=True):
     """
     Run the full simulation for a given number of days.
     Parameters:
@@ -334,6 +334,7 @@ def run_simulation(days=7, random_state=2, agents=150, plots=None, shifting=None
              if None, no plots are shown
     - shifting: placeholder for future enabling of behavioral modes (habit, price, social)
                 currently unused, pass None to use baseline distributions only
+    - median_plot: Boolean, True if you want to print a median plot of the entire period
     
     Returns:
     - all_aggregates: each entry is a day with a 96-slot aggregate load array
@@ -391,7 +392,7 @@ def run_simulation(days=7, random_state=2, agents=150, plots=None, shifting=None
         all_aggregates.append(aggregate)
         all_daily_profiles.append(day_profiles)
 
-        print(f"Day {day + 1}/{days} done  |  peak load: {aggregate.max():.2f} kW  |  total: {aggregate.sum() * 0.25:.1f} kWh")
+        print(f"Day {day + 1}/{days} done  |  peak load: {aggregate.max():.2f} kW  |  total: {aggregate.sum() * 0.25:.1f} kW")
 
     #plotting requested days
     if plots is not None:
@@ -412,19 +413,19 @@ def run_simulation(days=7, random_state=2, agents=150, plots=None, shifting=None
             plt.tight_layout()
             plt.show()
     
-    #Always plot the median profile across all simulated days
-    time_axis = np.linspace(0, 24, 96, endpoint=False)
-    aggregates_array = np.array(all_aggregates)
-    median_profile = np.median(aggregates_array, axis=0)
-    fig, ax = plt.subplots(figsize=(12, 4))
-    ax.fill_between(time_axis, median_profile, color="lightblue", alpha=0.7)
-    ax.set_ylabel("kW")
-    ax.set_xlabel("Hour of day")
-    ax.set_title(f"Median aggregate load profile ({days} days, {agents} agents, seed {random_state})")
-    ax.grid(alpha=0.3)
-    plt.xticks(range(25))
-    plt.tight_layout()
-    plt.show()
+    if median_plot: 
+        time_axis = np.linspace(0, 24, 96, endpoint=False)
+        aggregates_array = np.array(all_aggregates)
+        median_profile = np.median(aggregates_array, axis=0)
+        fig, ax = plt.subplots(figsize=(12, 4))
+        ax.fill_between(time_axis, median_profile, color="lightblue", alpha=0.7)
+        ax.set_ylabel("kW")
+        ax.set_xlabel("Hour of day")
+        ax.set_title(f"Median aggregate load profile ({days} days, {agents} agents, seed {random_state})")
+        ax.grid(alpha=0.3)
+        plt.xticks(range(25))
+        plt.tight_layout()
+        plt.show()
  
     return all_aggregates, all_daily_profiles
 
@@ -432,4 +433,4 @@ def run_simulation(days=7, random_state=2, agents=150, plots=None, shifting=None
 #Example call
 #------------------
 
-results, profiles = run_simulation(days=5, random_state=100, agents=1000, plots=None, shifting=None)
+results, profiles = run_simulation(days=5, random_state=100, agents=1000, median_plot=False)
