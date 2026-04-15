@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 This code generates a daily electricity load profile for every agent at a 15-minute granularity
 -> It determines, when, how often, how long, how intense (appliance variant power draw) appliances are ran
 
-Then, I made the function run_simulation, giving easy access to only baselines for now
+It includes function run_simulation, giving easy access to only baselines for now
 
 The core methodology is adopted from Williams et al. (2025) 
 For their implementation, refer to: https://github.com/alikazemian-bot/AMPED-Residential/blob/main/AMPED-Residential%20Agent-based%20Model%20for%20Predicting%20Electricity%20Demand.ipynb
@@ -20,7 +20,8 @@ Methodology:
       (:00, :15, :30, :45) is added to get a 15-minute resolution start time
     - Intensity and length are sampled once per agent at initialisation and stay fixed,
       using the characteristics sourced from the code by Williams et al. (2025)
-    - A flat baseline load represents always-on devices (e.g. fridge, router, standby)
+    - A flat baseline load represents always-on devices (e.g. fridge, router, standby). This load is evenly spread over the day (doensn't include rythmic cycling like in Williams et al. (2025)
+      implementation because that is not behavior influences. Size of the baseline is sampled per agent and was set by combining Williams et al. (2025) and Liander aggregate data of a residential area.
 
 """
 
@@ -83,28 +84,47 @@ def multi_peak_distribution(peak_list, baseline_probability=0.005): #Exact same 
     distribution /= distribution.sum() #normalize to a legal probability distribution which sums to 1.
     return distribution
 
+#The adjust peaks function has been implemented to slighly shift all baseline distributions
+#This change was made because of:
+#1. A mismatch of peaking and minimal usage hours against real DSO data: without adjustments the model peaks at 12, with adjustments, this peak is shifted to the morning and mirrors a similar structure to general electricity usage curves 
+#2. This mismatch would make the usage of baseline EPEX pricing illogical
 
-#Fitted Gaussian peak parameters from the baseline_distributions script, copy pasted values
+def adjust_peaks(peak_list):
+    adjusted = []
+    for center, height, width in peak_list:
+        if 8 <= center <= 13:
+            center = center - 2.8
+            height = height + 0.1   
+            width = max(0.1, width - 0.3) 
+        if 18 <= center <= 22:
+            center = center - 2
+            height = height + 0.5 
+            width = width + 0.5
+        adjusted.append((center, height, width))   
+
+    return adjusted
+    
+#Fitted Gaussian peak parameters from the baseline_distributions script, copy pasted values WITH adjusted_peaks
 #Each tuple is (center_hour, height, width) for one Gaussian peak
-dishwasher_baseline = multi_peak_distribution([(18.956315861064553, 0.11089493744353027, 1.357159179717805), (22.36027871623913, 0.07797395460554271, 0.771610889785124), (8.342960587362622, 0.05962600655372998, 1.4002245664011947), (13.314358999677186, 0.05, 1.8967520713194168)])
+dishwasher_baseline = multi_peak_distribution(adjust_peaks([(18.956315861064553, 0.11089493744353027, 1.357159179717805), (22.36027871623913, 0.07797395460554271, 0.771610889785124), (8.342960587362622, 0.05962600655372998, 1.4002245664011947), (13.314358999677186, 0.05, 1.8967520713194168)]))
 
-washing_baseline = multi_peak_distribution([(9.545167198482746, 0.7790387292870447, 2.0244500172858944), (15.60115790675859, 0.33413792870222453, 4.41870480568728)])
+washing_baseline = multi_peak_distribution(adjust_peaks([(9.545167198482746, 0.7790387292870447, 2.0244500172858944), (15.60115790675859, 0.33413792870222453, 4.41870480568728)]))
 
-tumble_drier_baseline = multi_peak_distribution([(11.62212340248307, 1.208933954615057, 1.417355530924213), (15.14387596374066, 0.5874527036199261, 0.6935500197957881), (8.466416528180892, 0.8074778473489305, 1.6964259012427485), (19.228974958574852, 1.1762361135932435, 2.0189138827026043)])
+tumble_drier_baseline = multi_peak_distribution(adjust_peaks([(11.62212340248307, 1.208933954615057, 1.417355530924213), (15.14387596374066, 0.5874527036199261, 0.6935500197957881), (8.466416528180892, 0.8074778473489305, 1.6964259012427485), (19.228974958574852, 1.1762361135932435, 2.0189138827026043)]))
 
-cooker_baseline = multi_peak_distribution([(18.153061228523544, 1.2582844975217007, 2.3746642890017986), (18.59097312234728, 0.6816961836975054, 0.6823292016136122), (11.795692959571095, 1.3953243916233937, 0.7497850471616758), (8.425787475465675, 1.4349642274396488, 2.0156280604983725)])
+cooker_baseline = multi_peak_distribution(adjust_peaks([(18.153061228523544, 1.2582844975217007, 2.3746642890017986), (18.59097312234728, 0.6816961836975054, 0.6823292016136122), (11.795692959571095, 1.3953243916233937, 0.7497850471616758), (8.425787475465675, 1.4349642274396488, 2.0156280604983725)]))
 
-oven_baseline = multi_peak_distribution([(18.458235649470627, 0.37922201728501226, 0.3046711094792303), (11.738449852884226, 0.10562985711043978, 0.693090134001847), (7.545761516821308, 0.09437391474553104, 1.4517620706320356), (21.682585961077926, 0.05, 5.0)])
+oven_baseline = multi_peak_distribution(adjust_peaks([(18.458235649470627, 0.37922201728501226, 0.3046711094792303), (11.738449852884226, 0.10562985711043978, 0.693090134001847), (7.545761516821308, 0.09437391474553104, 1.4517620706320356), (21.682585961077926, 0.05, 5.0)]))
 
-grill_baseline = multi_peak_distribution([(11.924944463813114, 0.2809556783426315, 0.5815431599228617), (7.95645163258788, 0.05, 1.1849438827408596), (17.781582463893, 0.16119629241571146, 1.2220586595698648), (16.406340924304615, 0.18506115113627022, 0.3062559743946323)])
+grill_baseline = multi_peak_distribution(adjust_peaks([(11.924944463813114, 0.2809556783426315, 0.5815431599228617), (7.95645163258788, 0.05, 1.1849438827408596), (17.781582463893, 0.16119629241571146, 1.2220586595698648), (16.406340924304615, 0.18506115113627022, 0.3062559743946323)]))
 
-hob_baseline = multi_peak_distribution([(18.22784853881954, 0.15979319165991923, 1.5625426291399946), (7.638187212842916, 0.14974437128118528, 0.8485970203176886), (10.844037221309907, 0.08465959403479242, 1.7520044963356904)])
+hob_baseline = multi_peak_distribution(adjust_peaks([(18.22784853881954, 0.15979319165991923, 1.5625426291399946), (7.638187212842916, 0.14974437128118528, 0.8485970203176886), (10.844037221309907, 0.08465959403479242, 1.7520044963356904)]))
 
-tv_baseline = multi_peak_distribution([(8.178903464086682, 2.4674115102346237, 2.509022410606133), (19.505228878954412, 3.575007824823448, 0.4148362459235295), (18.615440531185566, 2.3700823150476538, 3.4375909799857913), (21.537457239174596, 3.6798085662182154, 0.4212647664517777)])
+tv_baseline = multi_peak_distribution(adjust_peaks([(8.178903464086682, 2.4674115102346237, 2.509022410606133), (19.505228878954412, 3.575007824823448, 0.4148362459235295), (18.615440531185566, 2.3700823150476538, 3.4375909799857913), (21.537457239174596, 3.6798085662182154, 0.4212647664517777)]))
 
-electronics_baseline = multi_peak_distribution([(8.178903464086682, 2.4674115102346237, 2.509022410606133), (19.505228878954412, 3.575007824823448, 0.4148362459235295), (18.615440531185566, 2.3700823150476538, 3.4375909799857913), (21.537457239174596, 3.6798085662182154, 0.4212647664517777)])
+electronics_baseline = multi_peak_distribution(adjust_peaks([(8.178903464086682, 2.4674115102346237, 2.509022410606133), (19.505228878954412, 3.575007824823448, 0.4148362459235295), (18.615440531185566, 2.3700823150476538, 3.4375909799857913), (21.537457239174596, 3.6798085662182154, 0.4212647664517777)]))
 
-ev_baseline = multi_peak_distribution([(0.6, 2.2, 1.8), (14.0, 0.5, 3), (19.5, 2.5, 2.3), (24, 1, 2.7)])
+ev_baseline = multi_peak_distribution(adjust_peaks([(0.6, 2.2, 1.8), (14.0, 0.5, 3), (19.5, 2.5, 2.3), (24, 1, 2.7)]))
 
 #EVs handled separately because it uses a single daily draw 
 baselines = {
@@ -140,7 +160,7 @@ def sample_agent_appliances(random_state):
         agent_appliances[name] = {
             "power_kw": power,
             "runtime_min": runtime,
-            "max_uses": max_uses,}
+            "max_uses": max_uses}
    
     #For standby, fridge etc:
     baseline_power = abs(random_state.normal(0.4, 0.15)) #sourced from Williams et al. (2025)
@@ -149,7 +169,7 @@ def sample_agent_appliances(random_state):
     #Setting up EV's 
     #EV characteristics from Robinson et al. (2013) Table 4
 
-    has_ev = random_state.random() < 0.05 #5% is a hyperparameter, to be adjusted when adressing specific countries
+    has_ev = random_state.random() < 0.05 #5% EV ownership is a hyperparameter, to be adjusted when adressing specific countries
     if has_ev:
         ev_power   = abs(random_state.normal(3.3, 0.3)) #3 kv mentioned in Robinson et al., converted to 3.3 kw
         ev_runtime = abs(random_state.normal(3.1 * 60, 20)) # 3.1 hours converted to minutes, 20 is a self set hyperparameter to account for variance in batteries/car-types
@@ -157,7 +177,7 @@ def sample_agent_appliances(random_state):
         ev_runtime = max(15, round(ev_runtime))  #safety for edge cases
         agent_appliances["EV"] = {
             "power_kw": ev_power,
-            "runtime_min": ev_runtime,
+            "runtime_min": ev_runtime
         }
     return agent_appliances, has_ev
 
@@ -412,4 +432,4 @@ def run_simulation(days=7, random_state=2, agents=150, plots=None, shifting=None
 #Example call
 #------------------
 
-results, profiles = run_simulation(days=10, random_state=100, agents=500, plots=[1, 29], shifting=None)
+results, profiles = run_simulation(days=5, random_state=100, agents=1000, plots=None, shifting=None)
